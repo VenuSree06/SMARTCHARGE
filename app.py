@@ -510,67 +510,328 @@ elif page == "Charging Infrastructure":
 # 13. GEOGRAPHICAL ANALYSIS
 # =========================================================
 elif page == "Geographical Analysis":
-    st.markdown('<div class="main-title">Geographical Analysis</div>', unsafe_allow_html=True)
-    st.caption("Explore the geographical distribution of EV charging stations.")
-    st.caption(f"Showing geographical information for: {state_label}")
+    st.markdown(
 
-    map_data = filtered_stations.dropna(subset=["Latitude", "Longitude"]).copy()
+        '<div class="main-title">Geographical Analysis</div>',
+
+        unsafe_allow_html=True
+
+    )
+
+    st.caption(
+
+        "Explore the geographical distribution of EV charging stations."
+
+    )
+
+    st.caption(
+
+        f"Showing geographical information for: {state_label}"
+
+    )
+
+    # Clean geographical coordinates
+
+    map_data = filtered_stations.copy()
+
+    map_data["Latitude"] = pd.to_numeric(
+
+        map_data["Latitude"], errors="coerce"
+
+    )
+
+    map_data["Longitude"] = pd.to_numeric(
+
+        map_data["Longitude"], errors="coerce"
+
+    )
+
+    map_data = map_data.dropna(
+
+        subset=["Latitude", "Longitude"]
+
+    ).copy()
+
+    # Remove invalid geographical coordinates
+
+    map_data = map_data[
+
+        map_data["Latitude"].between(-90, 90)
+
+        & map_data["Longitude"].between(-180, 180)
+
+    ]
+
+    # KPI Cards
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        kpi_card("Charging Stations", f"{total_stations:,}")
+
+        kpi_card(
+
+            "Charging Stations",
+
+            f"{total_stations:,}"
+
+        )
+
     with c2:
-        kpi_card("Cities Covered", f"{filtered_stations['City'].nunique():,}")
+
+        kpi_card(
+
+            "Cities Covered",
+
+            f"{filtered_stations['City'].nunique():,}"
+
+        )
+
     with c3:
-        kpi_card("Valid Map Locations", f"{len(map_data):,}")
+
+        kpi_card(
+
+            "Valid Map Locations",
+
+            f"{len(map_data):,}"
+
+        )
+
+    # Interactive Geographical Map
+
+    section_heading(
+
+        "EV Charging Station Geographical Distribution",
+
+        "Explore charging station locations across India."
+
+    )
 
     if not map_data.empty:
-        fig = px.scatter_mapbox(
+
+        if selected_state == "All India":
+
+            map_center = {
+
+                "lat": 20.5937,
+
+                "lon": 78.9629
+
+            }
+
+            map_zoom = 3.5
+
+        else:
+
+            map_center = {
+
+                "lat": map_data["Latitude"].mean(),
+
+                "lon": map_data["Longitude"].mean()
+
+            }
+
+            map_zoom = 5
+
+        # Updated Plotly MapLibre function
+
+        fig = px.scatter_map(
+
             map_data,
-            lat="Latitude", lon="Longitude",
+
+            lat="Latitude",
+
+            lon="Longitude",
+
             hover_name="Station Name",
-            hover_data=["City", "State", "Operator", "Connector Type", "Power (kW)"],
-            color="State", zoom=5 if selected_state != "All India" else 3.5,
+
+            hover_data=[
+
+                "City",
+
+                "State",
+
+                "Operator",
+
+                "Connector Type",
+
+                "Power (kW)"
+
+            ],
+
+            color="State",
+
+            center=map_center,
+
+            zoom=map_zoom,
+
             height=650,
-            title=f"Charging Station Locations — {state_label}"
+
+            map_style="open-street-map",
+
+            title=f"EV Charging Station Locations — {state_label}"
+
         )
+
+        fig.update_traces(
+
+            marker=dict(size=10, opacity=0.75)
+
+        )
+
         fig.update_layout(
-            mapbox_style="open-street-map",
-            margin={"r": 0, "t": 50, "l": 0, "b": 0}
+
+            margin=dict(
+
+                r=0,
+
+                t=50,
+
+                l=0,
+
+                b=0
+
+            ),
+
+            legend_title_text="State"
+
         )
-        st.plotly_chart(fig, use_container_width=True)
-        st.success(f"Displaying {len(map_data):,} charging station locations.")
-    else:
-        st.warning("No valid latitude and longitude records found for the selected state.")
 
-    section_heading("Station Locations by City")
-    city_data = (
-        filtered_stations.groupby(["State", "City"])["Station Name"]
-        .nunique().reset_index(name="Total_Stations")
-        .sort_values("Total_Stations", ascending=False)
+        st.plotly_chart(
+
+            fig,
+
+            use_container_width=True
+
+        )
+
+        st.success(
+
+            f"Displaying {len(map_data):,} valid charging station locations."
+
+        )
+
+    else:
+
+        st.warning(
+
+            "No valid latitude and longitude records found for the selected state."
+
+        )
+
+    # City-wise Station Analysis
+
+    section_heading(
+
+        "Station Locations by City",
+
+        "Number of charging stations available in each city and state."
+
     )
+    city_data = (
+
+        filtered_stations
+
+        .groupby(["State", "City"])["Station Name"]
+
+        .nunique()
+
+        .reset_index(name="Total_Stations")
+
+        .sort_values(
+
+            "Total_Stations",
+
+            ascending=False
+
+        )
+
+    )
+
     if not city_data.empty:
-        st.dataframe(city_data, use_container_width=True, hide_index=True)
+
+        st.dataframe(
+
+            city_data,
+
+            use_container_width=True,
+
+            hide_index=True,
+
+            height=450
+
+        )
+
     else:
+
         empty_message()
 
-    section_heading("Connector Types in Selected Area")
+    # Connector Analysis
+
+    section_heading(
+
+        "Connector Types in Selected Area"
+
+    )
+
     if not connector_distribution.empty:
-        show_chart(px.bar(
-            connector_distribution, x="Connector_Type", y="Total_Stations",
-            title=f"Connector Types — {state_label}"
-        ))
+
+        show_chart(
+
+            px.bar(
+
+                connector_distribution,
+
+                x="Connector_Type",
+
+                y="Total_Stations",
+
+                title=f"Connector Types — {state_label}"
+
+            )
+
+        )
+
     else:
+
         empty_message()
 
-    section_heading("Charging Operators in Selected Area")
+    # Operator Analysis
+
+    section_heading(
+
+        "Charging Operators in Selected Area"
+
+    )
+
     if not operator_distribution.empty:
-        show_chart(px.bar(
-            operator_distribution.head(10).sort_values("Total_Stations"),
-            x="Total_Stations", y="Operator", orientation="h",
+
+        fig = px.bar(
+
+            operator_distribution.head(10).sort_values(
+
+                "Total_Stations"
+
+            ),
+
+            x="Total_Stations",
+
+            y="Operator",
+
+            orientation="h",
+
             title=f"Charging Operators — {state_label}"
-        ))
+
+        )
+
+        fig.update_layout(
+
+            yaxis={"categoryorder": "total ascending"}
+
+        )
+
+        show_chart(fig)
+
     else:
+
         empty_message()
 
 # =========================================================
